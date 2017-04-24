@@ -1,0 +1,53 @@
+FROM ubuntu:16.04
+MAINTAINER Ashfaq Ahmed Shaik <ashfaq.shaik@broadridge.com>
+
+# Set Proxy Variables if any
+ARG PROXY
+ENV http_proxy $PROXY
+ENV https_proxy $PROXY
+
+# Misc Environment Variables
+ENV PATH $PATH:/usr/local/go/bin
+
+# Install Pre Requisites
+RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                               && \
+    apt-get update                                                                      && \
+    apt-get install -y wget software-properties-common unzip git build-essential git    && \
+
+# Install SOLC
+    add-apt-repository -y ppa:ethereum/ethereum                                         && \
+    apt-get update                                                                      && \
+    apt-get install -y solc                                                             && \
+
+# Install Go
+    wget -q https://storage.googleapis.com/golang/${GO_RELEASE}                         && \
+    tar -xvzf ${GO_RELEASE}                                                             && \
+    mv go /usr/local/go                                                                 && \
+    rm -rf ${GO_RELEASE}                                                                && \
+
+# Clone Quorum and build binaries
+    # => Build will be based on version 1.1.0
+    git clone https://github.com/jpmorganchase/quorum.git                               && \
+    cd quorum                                                                           && \
+    git checkout tags/v1.1.0                                                            && \
+    make all                                                                            && \
+    # => Copy geth & bootnode binaries & Delete repo
+    cp /quorum/build/bin/geth /usr/local/bin                                            && \
+    cp /quorum/build/bin/bootnode /usr/local/bin                                        && \
+    cd / && rm -rf /quorum                                                              && \
+    
+# Install Constellation
+    wget -q https://github.com/jpmorganchase/constellation/releases/download/v0.0.1-alpha/ubuntu1604.zip    && \
+    unzip ubuntu1604.zip                                                                                    && \
+    cp ubuntu1604/constellation-node /usr/local/bin                                                         && \
+    chmod 0755 /usr/local/bin//constellation-node                                                           && \
+    cp ubuntu1604/constellation-enclave-keygen /usr/local/bin                                               && \
+    chmod 0755 /usr/local/bin/constellation-enclave-keygen                                                  && \
+    rm -rf ubuntu1604 ubuntu1604.zip                                                                        && \
+
+# Clean up
+    apt-get remove --purge -y wget software-properties-common unzip build-essential git $(apt-mark showauto)    && \
+    rm -rf /var/lib/apt/lists/*                                                                                 && \
+    rm -rf /usr/local/go
+
+
