@@ -1,5 +1,5 @@
 FROM ubuntu:16.04
-MAINTAINER Ashfaq Ahmed Shaik <ashfaq.shaik@broadridge.com>
+MAINTAINER Ashfaq Ahmed Shaik <https://github.com/0yukikaze0>
 
 # Set Proxy Variables if any
 ARG PROXY
