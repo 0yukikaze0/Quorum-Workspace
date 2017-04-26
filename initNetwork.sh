@@ -15,46 +15,85 @@
 # Constellation     : $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
 # logs              : $HOME/quorum/$networkName/datadirs/$nodeName/logs
 
-
 if [ -z "$1" ]
 then echo "Network Name required. Usage: initNetwork.sh <networkName>"
 else
+    echo "+-----------------------------------------------------------------+"
+    echo "|                  Quorum Workspace Builder v1.0                  |"
+    echo "+-----------------------------------------------------------------+"
+    IFS=","
     networkName=$1
+    if [ ! -f ./Networks/$networkName/$networkName.properties ]
+    then 
+        echo "Can't find $networkName.properties under ./Networks/$networkName"
+        echo "Nothing to work on... Exiting"
+        exit
+    fi
     . ./Networks/$networkName/$networkName.properties
+
+    # Stop any pre existing nodes for this network
+    echo " +- Stopping pre existing nodes for [ $networkName ]"
+    for nodeName in $nodes
+    do
+        containerName=${networkName}_${nodeName}
+        echo "      +- Stopping $containerName"        
+        docker exec $containerName rm -rf /data/quorum/geth && rm -rf /data/quorum/keystore && rm -rf /data/quorum/logs && rm -rf /data/quorum/constellation
+        docker stop $containerName > /dev/null && docker rm $containerName > /dev/null
+    done
+
+    # Clear and create directories
     echo " +- Building quorum network : $networkName"
     echo " +- Clearing any pre-existing [ $networkName ] data"
     rm -rf $HOME/quorum/$networkName
     mkdir -p $HOME/quorum/$networkName/genesis
-    mkdir -p $HOME/quorum/$networkName/logs
-    echo " +- Installing Genesis JSON"
-    cp ./Networks/$networkName/genesis/$genesisFile $HOME/quorum/$networkName/genesis/genesis.json
     
-    IFS=","
+    echo " +- Installing Genesis JSON"
+    cp ./Networks/$networkName/genesis/genesis.json $HOME/quorum/$networkName/genesis/genesis.json
+    
     echo " +- Creating silos"
     for nodeName in $nodes
     do 
-        
+        mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/logs
         echo "      +- Creating silo for [ $nodeName ]"
         mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName
         echo "          +- Data directory : $HOME/quorum/$networkName/datadirs/$nodeName"
         mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/keystore
         echo "          +- Key Store : $HOME/quorum/$networkName/datadirs/$nodeName/keystore"
         
-        echo "          +- Installing bootstrap keys"
-        # Install bootstrap key pairs
-        eval keys="\$${nodeName}_keys"
-        for key in $keys
-        do
-            cp ./Networks/$networkName/Keypairs/$key $HOME/quorum/$networkName/datadirs/$nodeName/keystore
-        done
+        eval roles="\$${nodeName}_roles"
+        if [ "$roles" != "bootnode" ]
+        then
+            echo "          +- Installing bootstrap keys"        
+            # Install bootstrap key pairs
+            eval keys="\$${nodeName}_keys"
+            for key in $keys
+            do
+                cp ./Networks/$networkName/Keypairs/$key $HOME/quorum/$networkName/datadirs/$nodeName/keystore
+            done
 
-        echo "          +- Installing constellation keys"
-        mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
-        eval constellationKeys="\$${nodeName}_constellationKeys"
-        for key in $constellationKeys
-        do
-            cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
-        done
+            # Install keypairs for constellation
+            echo "          +- Installing constellation keys"
+            mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
+            eval constellationKeys="\$${nodeName}_constellationKeys"
+            for key in $constellationKeys
+            do
+                # Key name format
+                # <nodeName>_tm
+                extension=${key##*.}
+                cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore/${nodeName}_tm.${extension}
+            done
+
+            echo "          +- Installing constellation archival keys"
+            mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
+            eval constellationKeys="\$${nodeName}_constellationArchivalKeys"
+            for key in $constellationKeys
+            do
+                # Key name format
+                # <nodeName>_archival
+                extension=${key##*.}
+                cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore/${nodeName}_archival.${extension}
+            done
+        fi
 
         echo ""
 
@@ -62,30 +101,19 @@ else
 
     # Initialize Quorum Nodes
     #   Container name      : <networkName>_<nodeName>
-    #   Docker network name : <networkname>
+    #   Docker network name : <networkName>
     #
-    #   1. Stop & remove any preexisting docker containers
-    #   2. Delete any pre existing docker network
-    #   3. Create docker network
-    #   4. Spin up node containers
+    #   1. Delete any pre existing docker network
+    #   2. Create docker network
+    #   3. Spin up node containers
 
     # [1]
-    echo " +- Stopping pre existing nodes for [ $networkName ]"
-    for nodeName in $nodes
-    do
-        containerName=${networkName}_${nodeName}
-        echo "      +- Stopping $containerName"
-        docker stop $containerName > /dev/null && docker rm $containerName > /dev/null
-    done
-
-    # [2]
     echo " +- Removing docker network [ $networkName ]"
     docker network rm $networkName > /dev/null
-    # [3]
+    # [2]
     echo " +- Creating network [ $networkName ]"
     docker network create --driver=bridge $networkName > /dev/null
-
-    # [4]
+    # [3]
     echo " +- Spinning up node containers"
     for nodeName in $nodes
     do
@@ -95,39 +123,77 @@ else
         docker  run -td                             \
                 --name $containerName               \
                 --network $networkName              \
-                -v $HOME/quorum/$networkName/genesis:/data/quorum/genesis               \
-                -v $HOME/quorum/$networkName/datadirs/$nodeName:/data/quorum/data       \
-                -v $HOME/quorum/$networkName/logs:/data/quorum/logs                     \
+                -v $HOME/quorum/$networkName/genesis:/data/genesis              \
+                -v $HOME/quorum/$networkName/datadirs/$nodeName:/data/quorum    \
                 -p $rpcPort:$rpcPort                \
                 broadridge/quorum:1.1.0 > /dev/null
     done
 
     printf "\n"
-    printf " Active Quorum Nodes \n"
-    printf " + \t\t\t + \t\t + \n"
+    echo " +---------------------------------------+"
+    echo " |          Active Quorum Nodes          |"
+    echo " +-----------------------+---------------+"   
     printf " | Container Name \t | IP Address \t | \n"
-    printf " + \t\t\t + \t\t + \n"
+    echo " +-----------------------+---------------+"   
+    
     # Get IP addresses of all running containers
+    # Build Constellation properties
     for nodeName in $nodes
     do
         containerName=${networkName}_${nodeName}
         ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
         printf " | %s \t | %s \t | \n" $containerName $ipAddr
+
+        eval roles="\$${nodeName}_roles"
+        if [ "$roles" == "bootnode" ]
+        then
+            continue
+        fi
+        # Write constellation Properties
+        eval port="\$${nodeName}_constellationPort"
+        eval url="http://$ipAddr:$port/"
+        socketPath="/data/quorum/constellation/constellation_${nodeName}.ipc"
+        eval otherNodeUrls="\$${nodeName}_constellationOtherNodeUrls"
+        constPath="$HOME/quorum/$networkName/datadirs/$nodeName/constellation"
+
+        echo "url=\"$url\"" >> $constPath/constellation_$nodeName.conf
+        echo "port=$port" >> $constPath/constellation_$nodeName.conf
+        echo "socketPath=\"$socketPath\"" >> $constPath/constellation_$nodeName.conf
+        echo "otherNodeUrls=$otherNodeUrls" >> $constPath/constellation_$nodeName.conf
+        echo "publicKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_tm.pub\"" >> $constPath/constellation_$nodeName.conf
+        echo "privateKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_tm.key\"" >> $constPath/constellation_$nodeName.conf
+        echo "archivalPublicKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
+        echo "archivalPrivateKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
+        echo "storagePath=\"/data/quorum/constellation\"" >> $constPath/constellation_$nodeName.conf
+
     done
-    printf " + \t\t\t + \t\t + \n"
+    echo " +-----------------------+---------------+"
 
     echo ""
     for nodeName in $nodes
     do
         containerName=${networkName}_${nodeName}
-        echo " +- Creating genesis block on $containerName"
-        echo ""
-        docker  exec $containerName  \
-                geth --datadir /data/quorum/data init /data/quorum/genesis/genesis.json
+        eval roles="\$${nodeName}_roles"
+
+        if [ "$roles" == "bootnode" ]
+        then
+            eval keyHex="\$${nodeName}_keyHex"
+            ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
+            echo " +- Starting bootnode @ $ipAddr"
+            echo "      +- Boot Node Key : $keyHex"
+            docker  exec -d $containerName \
+                    /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:33445" 2>>/data/quorum/logs/$nodeName.log &"
+        else
+            echo " +- Creating genesis block on $containerName"
+            echo ""
+            docker  exec $containerName  \
+                    geth --datadir /data/quorum init /data/genesis/genesis.json
+        fi
+        
         echo ""
     done
 
     echo "+-----------------------------------------------------------------+"
-    echo "|                  Quorum Nodes Initialilzed                      |"
+    echo "|                  Quorum Nodes Initialized                       |"
     echo "+-----------------------------------------------------------------+"
 fi
