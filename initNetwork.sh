@@ -12,6 +12,7 @@
 # Genesis           : $HOME/quorum/$networkName/genesis/genesis.json
 # Data Directories  : $HOME/quorum/$networkName/datadirs/$nodeName
 # Keystores         : $HOME/quorum/$networkName/datadirs/$nodeName/keystore
+# Constellation     : $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
 # logs              : $HOME/quorum/$networkName/datadirs/$nodeName/logs
 
 
@@ -19,14 +20,14 @@ if [ -z "$1" ]
 then echo "Network Name required. Usage: initNetwork.sh <networkName>"
 else
     networkName=$1
-    . ./$networkName.properties
+    . ./Networks/$networkName/$networkName.properties
     echo " +- Building quorum network : $networkName"
     echo " +- Clearing any pre-existing [ $networkName ] data"
     rm -rf $HOME/quorum/$networkName
     mkdir -p $HOME/quorum/$networkName/genesis
     mkdir -p $HOME/quorum/$networkName/logs
     echo " +- Installing Genesis JSON"
-    cp ./Assets/genesis/$genesisFile $HOME/quorum/$networkName/genesis/genesis.json
+    cp ./Networks/$networkName/genesis/$genesisFile $HOME/quorum/$networkName/genesis/genesis.json
     
     IFS=","
     echo " +- Creating silos"
@@ -38,14 +39,23 @@ else
         echo "          +- Data directory : $HOME/quorum/$networkName/datadirs/$nodeName"
         mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/keystore
         echo "          +- Key Store : $HOME/quorum/$networkName/datadirs/$nodeName/keystore"
-        eval keys="\$${nodeName}_keys"
         
+        echo "          +- Installing bootstrap keys"
         # Install bootstrap key pairs
+        eval keys="\$${nodeName}_keys"
         for key in $keys
         do
-            cp ./Assets/Keypairs/$key $HOME/quorum/$networkName/datadirs/$nodeName/keystore
+            cp ./Networks/$networkName/Keypairs/$key $HOME/quorum/$networkName/datadirs/$nodeName/keystore
         done
-        echo "          +- Keys installed"
+
+        echo "          +- Installing constellation keys"
+        mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
+        eval constellationKeys="\$${nodeName}_constellationKeys"
+        for key in $constellationKeys
+        do
+            cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
+        done
+
         echo ""
 
     done
