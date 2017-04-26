@@ -37,7 +37,7 @@ RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                       
     cd / && rm -rf /quorum                                                              && \
     
 # Install Constellation
-    wget -q https://github.com/jpmorganchase/constellation/releases/download/v0.0.1-alpha/ubuntu1604.zip    && \
+    wget -q https://github.com/0yukikaze0/constellation/releases/download/v0.0.2-alpha/ubuntu1604.zip       && \
     unzip ubuntu1604.zip                                                                                    && \
     cp ubuntu1604/constellation-node /usr/local/bin                                                         && \
     chmod 0755 /usr/local/bin//constellation-node                                                           && \

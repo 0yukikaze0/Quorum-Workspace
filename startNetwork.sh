@@ -23,6 +23,16 @@ else
     for nodeName in $nodes
     do
         containerName=${networkName}_${nodeName}
+
+        # Get current container state
+        # If container is in stopped status -> Issue a start command
+        containerStatus=$(docker inspect --format "{{ .State.Status }}" $containerName)
+        if [ "$containerStatus" == "exited" ]
+        then
+            echo "      +- Starting container $containerName"
+            docker start $containerName >> /dev/null
+        fi
+
         eval roles="\$${nodeName}_roles"
         if [ "$roles" == "bootnode" ]
         then
