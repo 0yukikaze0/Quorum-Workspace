@@ -47,7 +47,10 @@ RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                       
 
 # Clean up
     apt-get remove --purge -y wget software-properties-common unzip build-essential git $(apt-mark showauto)    && \
+# Below dependencies are needed for Constellation
+    apt-get install -y libdb-dev libsodium-dev zlib1g-dev libtinfo-dev libgmp-dev                               && \
     rm -rf /var/lib/apt/lists/*                                                                                 && \
-    rm -rf /usr/local/go
+    rm -rf /usr/local/go                                                                                        
+
 
 

@@ -2,12 +2,15 @@
 
 # Author : Ashfaq Ahmed Shaik <https://github.com/0yukikaze0>
 #
+# Description : Builds and configures scaffolding for a Quorum network. Nodes are deployed
+#               as docker containers.
+#
 # CAUTION : Destructive actions => This script will delete any previous blockchain instance
 #           running with the same name. Previous data/state will be lost and a new genesis 
 #           block will be created
 #           
 
-# Build a local data directory
+# Build local data directories to be mounted as volumes on containers
 # Let $networkName = current network name
 # Genesis           : $HOME/quorum/$networkName/genesis/genesis.json
 # Data Directories  : $HOME/quorum/$networkName/datadirs/$nodeName
@@ -158,8 +161,8 @@ else
 
         echo "url=\"$url\"" >> $constPath/constellation_$nodeName.conf
         echo "port=$port" >> $constPath/constellation_$nodeName.conf
-        echo "socketPath=\"$socketPath\"" >> $constPath/constellation_$nodeName.conf
-        echo "otherNodeUrls=$otherNodeUrls" >> $constPath/constellation_$nodeName.conf
+        echo "socket=\"$socketPath\"" >> $constPath/constellation_$nodeName.conf
+        echo "othernodes=$otherNodeUrls" >> $constPath/constellation_$nodeName.conf
         echo "publicKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_tm.pub\"" >> $constPath/constellation_$nodeName.conf
         echo "privateKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_tm.key\"" >> $constPath/constellation_$nodeName.conf
         echo "archivalPublicKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
@@ -178,11 +181,12 @@ else
         if [ "$roles" == "bootnode" ]
         then
             eval keyHex="\$${nodeName}_keyHex"
+            eval port="\$${nodeName}_port"
             ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
             echo " +- Starting bootnode @ $ipAddr"
             echo "      +- Boot Node Key : $keyHex"
             docker  exec -d $containerName \
-                    /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:33445" 2>>/data/quorum/logs/$nodeName.log &"
+                    /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:${port}" 2>>/data/quorum/logs/$nodeName.log &"
         else
             echo " +- Creating genesis block on $containerName"
             echo ""
