@@ -18,21 +18,31 @@ else
     . ./Networks/$networkName/$networkName.properties
     BOOTNODE_ENODE=""
 
-    # Start constellation nodes on all containers
-    echo " +- Booting constellation"
+    # Pre check -> Are the containers running
+    echo " +- Systems check"
     for nodeName in $nodes
     do
+
         containerName=${networkName}_${nodeName}
 
         # Get current container state
         # If container is in stopped status -> Issue a start command
         containerStatus=$(docker inspect --format "{{ .State.Status }}" $containerName)
+        echo "      [+] $containerName : $containerStatus"
+
         if [ "$containerStatus" == "exited" ]
         then
-            echo "      +- Starting container $containerName"
+            echo "          +- Starting container $containerName"
             docker start $containerName >> /dev/null
         fi
 
+    done
+
+    # Start constellation nodes on all containers
+    echo " +- Booting constellation"
+    for nodeName in $nodes
+    do
+      
         eval roles="\$${nodeName}_roles"
         if [ "$roles" == "bootnode" ]
         then
@@ -57,13 +67,19 @@ else
     do 
         containerName=${networkName}_${nodeName}
         eval roles="\$${nodeName}_roles"
-        if [ "$roles" == "bootnode" ]
-        then
-            continue
-        fi
         eval ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
         eval port="\$${nodeName}_port"
         eval rpcPort="\$${nodeName}_rpcPort"
+        
+        if [ "$roles" == "bootnode" ]
+        then
+            eval keyHex="\$${nodeName}_keyHex"
+            echo " +- Starting bootnode @ $ipAddr"
+            echo "      +- Boot Node Key : $keyHex"
+            docker  exec -d $containerName \
+                    /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:${port}" 2>>/data/quorum/logs/$nodeName.log &"
+            continue
+        fi
 
         execString="PRIVATE_CONFIG=/data/quorum/constellation/constellation_${nodeName}.conf nohup geth --datadir /data/quorum $GLOBAL_ARGS --rpc --rpcaddr ${ipAddr} --rpcport $rpcPort --port $port"
 

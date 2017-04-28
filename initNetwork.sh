@@ -86,16 +86,6 @@ else
                 cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore/${nodeName}_tm.${extension}
             done
 
-            echo "          +- Installing constellation archival keys"
-            mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
-            eval constellationKeys="\$${nodeName}_constellationArchivalKeys"
-            for key in $constellationKeys
-            do
-                # Key name format
-                # <nodeName>_archival
-                extension=${key##*.}
-                cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore/${nodeName}_archival.${extension}
-            done
         fi
 
         echo ""
@@ -152,6 +142,9 @@ else
         then
             continue
         fi
+
+        
+        echo ""
         # Write constellation Properties
         eval port="\$${nodeName}_constellationPort"
         eval url="http://$ipAddr:$port/"
@@ -173,6 +166,19 @@ else
     echo " +-----------------------+---------------+"
 
     echo ""
+
+    echo " +- Generating enclave keypairs"
+    for nodeName in $nodes
+    do
+        # Generate constellation keypairs
+        containerName=${networkName}_${nodeName}
+        echo "      +- Generating keypair for $containerName"
+        docker  exec $containerName  \
+                /bin/bash -c "constellation-enclave-keygen /data/quorum/constellation/keystore/${containerName}_tm"
+        docker  exec $containerName  \
+                /bin/bash -c "constellation-enclave-keygen /data/quorum/constellation/keystore/${containerName}_archival"
+    done
+
     for nodeName in $nodes
     do
         containerName=${networkName}_${nodeName}
@@ -180,13 +186,7 @@ else
 
         if [ "$roles" == "bootnode" ]
         then
-            eval keyHex="\$${nodeName}_keyHex"
-            eval port="\$${nodeName}_port"
-            ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
-            echo " +- Starting bootnode @ $ipAddr"
-            echo "      +- Boot Node Key : $keyHex"
-            docker  exec -d $containerName \
-                    /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:${port}" 2>>/data/quorum/logs/$nodeName.log &"
+            continue
         else
             echo " +- Creating genesis block on $containerName"
             echo ""
