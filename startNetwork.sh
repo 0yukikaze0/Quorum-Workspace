@@ -42,26 +42,28 @@ else
     echo " +- Booting constellation"
     for nodeName in $nodes
     do
-      
+        containerName=${networkName}_${nodeName}
         eval roles="\$${nodeName}_roles"
+        eval keyHex="\$${nodeName}_keyHex"
+        eval port="\$${nodeName}_constellationPort"
+
         if [ "$roles" == "bootnode" ]
         then
-            eval keyHex="\$${nodeName}_keyHex"
-            eval port="\$${nodeName}_port"
             ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
             address=$(docker exec $containerName bootnode -writeaddress -nodekeyhex="$keyHex")
-            BOOTNODE_ENODE="enode://${address}@[${ipAddr}]:${port}"
+            eval bootNodePort="\$${nodeName}_port"
+            BOOTNODE_ENODE="enode://${address}@[${ipAddr}]:${bootNodePort}"
             continue
         fi
-
+        
         echo "      +- Starting constellation node on $containerName"
         docker  exec -d $containerName \
-                /bin/bash -c "nohup constellation-node /data/quorum/constellation/constellation_${nodeName}.conf 2>> /data/quorum/logs/constellation_${nodeName}.log --socket=/data/quorum/constellation/constellation_${nodeName}.ipc &"
+                /bin/bash -c    "nohup constellation-node /data/quorum/constellation/constellation_${nodeName}.conf 2>> /data/quorum/logs/constellation_${nodeName}.log &"
         sleep 1
 
     done
 
-    GLOBAL_ARGS="--bootnodes $BOOTNODE_ENODE --networkid $networkId  --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum"
+    GLOBAL_ARGS=""
     echo " +- Starting Quorum Nodes"
     for nodeName in $nodes
     do 
@@ -81,14 +83,14 @@ else
             continue
         fi
 
-        execString="PRIVATE_CONFIG=/data/quorum/constellation/constellation_${nodeName}.conf nohup geth --datadir /data/quorum $GLOBAL_ARGS --rpc --rpcaddr ${ipAddr} --rpcport $rpcPort --port $port"
+        roleString=""
 
         # Voter configuration
         if [ "$roles" != "${roles/voter/}" ]
         then
             eval voteAccount="\$${nodeName}_voteAccount"
             eval votePassword="\$${nodeName}_votePassword"
-            execString="$execString --voteaccount \"$voteAccount\" --votepassword \"$votePassword\""
+            roleString="$roleString --voteaccount \"$voteAccount\" --votepassword \"$votePassword\""
         fi
 
         # Blockmaker configuration
@@ -98,14 +100,23 @@ else
             eval blockMakerPassword="\$${nodeName}_blockPassword"
             eval minBlockTime="\$${nodeName}_minBlockTime"
             eval maxBlockTime="\$${nodeName}_maxBlockTime"
-            execString="$execString --blockmakeraccount \"$blockMakerAccount\" --blockmakerpassword \"$blockMakerPassword\" --singleblockmaker --minblocktime $minBlockTime --maxblocktime $maxBlockTime"
+            roleString="$roleString --blockmakeraccount \"$blockMakerAccount\" --blockmakerpassword \"$blockMakerPassword\" --singleblockmaker --minblocktime $minBlockTime --maxblocktime $maxBlockTime"
         fi
 
         echo "      +- Starting $containerName with roles [ $roles ]"
+        echo $roleString
         docker  exec -d $containerName      \
                 /bin/bash -c                \
-                "$execString 2>>/data/quorum/logs/$nodeName.log &"
-           
+                "PRIVATE_CONFIG=/data/quorum/constellation/constellation_${nodeName}.conf \
+                 nohup geth --datadir /data/quorum \
+                 --bootnodes $BOOTNODE_ENODE \
+                 --networkid $networkId  \
+                 --solc /usr/bin/solc \
+                 --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum \
+                 --rpc --rpcaddr ${ipAddr} --rpcport $rpcPort --port $port \
+                 --verbosity 4 \
+                 2>>/data/quorum/logs/$nodeName.log &"
+                
     done
 
 fi

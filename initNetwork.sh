@@ -74,18 +74,6 @@ else
                 cp ./Networks/$networkName/Keypairs/$key $HOME/quorum/$networkName/datadirs/$nodeName/keystore
             done
 
-            # Install keypairs for constellation
-            echo "          +- Installing constellation keys"
-            mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
-            eval constellationKeys="\$${nodeName}_constellationKeys"
-            for key in $constellationKeys
-            do
-                # Key name format
-                # <nodeName>_tm
-                extension=${key##*.}
-                cp ./Networks/$networkName/constellation/keys/$key $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore/${nodeName}_tm.${extension}
-            done
-
         fi
 
         echo ""
@@ -142,40 +130,45 @@ else
         then
             continue
         fi
-
         
-        echo ""
         # Write constellation Properties
+        mkdir -p $HOME/quorum/$networkName/datadirs/$nodeName/constellation/keystore
         eval port="\$${nodeName}_constellationPort"
-        eval url="http://$ipAddr:$port/"
+        eval url="http://${ipAddr}:${port}/"
         socketPath="/data/quorum/constellation/constellation_${nodeName}.ipc"
         eval otherNodeUrls="\$${nodeName}_constellationOtherNodeUrls"
         constPath="$HOME/quorum/$networkName/datadirs/$nodeName/constellation"
-
         echo "url=\"$url\"" >> $constPath/constellation_$nodeName.conf
         echo "port=$port" >> $constPath/constellation_$nodeName.conf
-        echo "socket=\"$socketPath\"" >> $constPath/constellation_$nodeName.conf
-        echo "othernodes=$otherNodeUrls" >> $constPath/constellation_$nodeName.conf
-        echo "publicKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_tm.pub\"" >> $constPath/constellation_$nodeName.conf
-        echo "privateKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_tm.key\"" >> $constPath/constellation_$nodeName.conf
-        echo "archivalPublicKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
-        echo "archivalPrivateKeyPath=\"/data/quorum/constellation/keystore/${nodeName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
+        echo "socketPath=\"$socketPath\"" >> $constPath/constellation_$nodeName.conf
+        echo "otherNodeUrls=$otherNodeUrls" >> $constPath/constellation_$nodeName.conf
+        echo "publicKeyPath=\"/data/quorum/constellation/keystore/${containerName}_tm.pub\"" >> $constPath/constellation_$nodeName.conf
+        echo "privateKeyPath=\"/data/quorum/constellation/keystore/${containerName}_tm.key\"" >> $constPath/constellation_$nodeName.conf
+        echo "archivalPublicKeyPath=\"/data/quorum/constellation/keystore/${containerName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
+        echo "archivalPrivateKeyPath=\"/data/quorum/constellation/keystore/${containerName}_archival.key\"" >> $constPath/constellation_$nodeName.conf
         echo "storagePath=\"/data/quorum/constellation\"" >> $constPath/constellation_$nodeName.conf
-
+        echo "verbosity=3" >> $constPath/constellation_$nodeName.conf
     done
     echo " +-----------------------+---------------+"
 
     echo ""
+    
 
     echo " +- Generating enclave keypairs"
     for nodeName in $nodes
     do
-        # Generate constellation keypairs
         containerName=${networkName}_${nodeName}
+        eval roles="\$${nodeName}_roles"
+        if [ "$roles" == "bootnode" ]
+        then
+            continue
+        fi
+        # Generate constellation keypairs
         echo "      +- Generating keypair for $containerName"
-        docker  exec $containerName  \
+        docker  exec -it $containerName  \
                 /bin/bash -c "constellation-enclave-keygen /data/quorum/constellation/keystore/${containerName}_tm"
-        docker  exec $containerName  \
+        echo "      +- Generating archival keypair for $containerName"
+        docker  exec -it $containerName  \
                 /bin/bash -c "constellation-enclave-keygen /data/quorum/constellation/keystore/${containerName}_archival"
     done
 

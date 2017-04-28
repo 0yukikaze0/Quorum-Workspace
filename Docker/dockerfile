@@ -9,15 +9,14 @@ ENV https_proxy $PROXY
 # Misc Environment Variables
 ENV PATH $PATH:/usr/local/go/bin
 
+# Install Constellation
+ADD ./dependencies/constellation_v0.1.0_ubuntu1604.tar /usr/local/bin
+
 # Install Pre Requisites
 RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                               && \
     apt-get update                                                                      && \
     apt-get install -y wget software-properties-common unzip git build-essential        && \
-
-# Install SOLC
     add-apt-repository -y ppa:ethereum/ethereum                                         && \
-    apt-get update                                                                      && \
-    apt-get install -y solc                                                             && \
 
 # Install Go
     wget -q https://storage.googleapis.com/golang/${GO_RELEASE}                         && \
@@ -36,21 +35,18 @@ RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                       
     cp /quorum/build/bin/bootnode /usr/local/bin                                        && \
     cd / && rm -rf /quorum                                                              && \
     
-# Install Constellation
-    wget -q https://github.com/0yukikaze0/constellation/releases/download/v0.0.2-alpha/ubuntu1604.zip       && \
-    unzip ubuntu1604.zip                                                                                    && \
-    cp ubuntu1604/constellation-node /usr/local/bin                                                         && \
-    chmod 0755 /usr/local/bin//constellation-node                                                           && \
-    cp ubuntu1604/constellation-enclave-keygen /usr/local/bin                                               && \
-    chmod 0755 /usr/local/bin/constellation-enclave-keygen                                                  && \
-    rm -rf ubuntu1604 ubuntu1604.zip                                                                        && \
+# Attach execute permissions to constellation
+    chmod 0755 /usr/local/bin//constellation-node                                       && \
+    chmod 0755 /usr/local/bin/constellation-enclave-keygen                              && \
 
 # Clean up
     apt-get remove --purge -y wget software-properties-common unzip build-essential git $(apt-mark showauto)    && \
-# Below dependencies are needed for Constellation
-    apt-get install -y libdb-dev libsodium-dev zlib1g-dev libtinfo-dev libgmp-dev                               && \
-    rm -rf /var/lib/apt/lists/*                                                                                 && \
-    rm -rf /usr/local/go                                                                                        
+# Install SOLC
+    apt-get update                                                                      && \
+# Install SOLC and other dependencies for constellation
+    apt-get install -y libdb-dev libsodium-dev zlib1g-dev libtinfo-dev libgmp-dev solc  && \
+    rm -rf /var/lib/apt/lists/*                                                         && \
+    rm -rf /usr/local/go
 
 
 
