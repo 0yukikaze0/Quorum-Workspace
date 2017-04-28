@@ -114,6 +114,7 @@ else
                  --solc /usr/bin/solc \
                  --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum \
                  --rpc --rpcaddr ${ipAddr} --rpcport $rpcPort --port $port \
+                  $roleString \
                  --verbosity 4 \
                  2>>/data/quorum/logs/$nodeName.log &"
                 
