@@ -1,8 +1,8 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
-echo "Running docker build with proxy param : $1"
+echo "Building quorum image with proxy parameter : $1"
 
 docker build    --build-arg PROXY=$1                        \
                 -f ./Docker/dockerfile                      \
-                -t broadridge/quorum:1.1.0 .
+                -t yukikaze/quorum:1.1.0 .
                  

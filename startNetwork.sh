@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 # Author : Ashfaq Ahmed Shaik <https://github.com/0yukikaze0>
 #
@@ -55,15 +55,21 @@ else
             BOOTNODE_ENODE="enode://${address}@[${ipAddr}]:${bootNodePort}"
             continue
         fi
-        
-        echo "      +- Starting constellation node on $containerName"
-        docker  exec -d $containerName \
-                /bin/bash -c    "nohup constellation-node /data/quorum/constellation/constellation_${nodeName}.conf 2>> /data/quorum/logs/constellation_${nodeName}.log &"
-        sleep 1
 
+        # If constellation is already running -> continue to next container
+        constellationStatus=$(docker exec $containerName ps | grep "constellation*")
+        if [ -z $constellationStatus ]
+        then
+            echo "      +- Starting constellation node on $containerName"
+            docker  exec -d $containerName \
+                    /bin/bash -c    "nohup constellation-node /data/quorum/constellation/constellation_${nodeName}.conf 2>> /data/quorum/logs/constellation_${nodeName}.log &"
+            sleep 1
+        else
+            echo "      +- Detected an existing constellation process on $containerName -> [ $constellationStatus ]"
+        fi
+        
     done
 
-    GLOBAL_ARGS=""
     echo " +- Starting Quorum Nodes"
     for nodeName in $nodes
     do 
@@ -75,49 +81,106 @@ else
         
         if [ "$roles" == "bootnode" ]
         then
-            eval keyHex="\$${nodeName}_keyHex"
-            echo " +- Starting bootnode @ $ipAddr"
-            echo "      +- Boot Node Key : $keyHex"
-            docker  exec -d $containerName \
-                    /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:${port}" 2>>/data/quorum/logs/$nodeName.log &"
+            bootNodeStatus=$(docker exec $containerName ps | grep "bootnode*")            
+            if [ -z $bootNodeStatus ]
+            then
+                eval keyHex="\$${nodeName}_keyHex"
+                echo "      +- Starting bootnode @ $ipAddr"
+                echo "          +- Boot Node Key : $keyHex"
+                docker  exec -d $containerName \
+                        /bin/bash -c "nohup bootnode --nodekeyhex "$keyHex" --addr="${ipAddr}:${port}" 2>>/data/quorum/logs/$nodeName.log &"                
+            else
+                echo "      +- Detected an existing bootnode process on $containerName -> [ $bootNodeStatus ]"                
+            fi
             continue
         fi
 
-        roleString=""
-
-        # Voter configuration
-        if [ "$roles" != "${roles/voter/}" ]
+        gethNodeStatus=$(docker exec $containerName ps | grep "geth*")        
+        if [ -z $gethNodeStatus ]
         then
-            eval voteAccount="\$${nodeName}_voteAccount"
-            eval votePassword="\$${nodeName}_votePassword"
-            roleString="$roleString --voteaccount \"$voteAccount\" --votepassword \"$votePassword\""
-        fi
+            roleString=""
+            # Voter configuration
+            if [ "$roles" != "${roles/voter/}" ]
+            then
+                eval voteAccount="\$${nodeName}_voteAccount"
+                eval votePassword="\$${nodeName}_votePassword"
+                roleString="$roleString --voteaccount \"$voteAccount\" --votepassword \"$votePassword\""
+            fi
 
-        # Blockmaker configuration
-        if [ "$roles" != "${roles/blockmaker/}" ]
-        then
-            eval blockMakerAccount="\$${nodeName}_blockMakerAccount"
-            eval blockMakerPassword="\$${nodeName}_blockPassword"
-            eval minBlockTime="\$${nodeName}_minBlockTime"
-            eval maxBlockTime="\$${nodeName}_maxBlockTime"
-            roleString="$roleString --blockmakeraccount \"$blockMakerAccount\" --blockmakerpassword \"$blockMakerPassword\" --singleblockmaker --minblocktime $minBlockTime --maxblocktime $maxBlockTime"
+            # Blockmaker configuration
+            if [ "$roles" != "${roles/blockmaker/}" ]
+            then
+                eval blockMakerAccount="\$${nodeName}_blockMakerAccount"
+                eval blockMakerPassword="\$${nodeName}_blockPassword"
+                eval minBlockTime="\$${nodeName}_minBlockTime"
+                eval maxBlockTime="\$${nodeName}_maxBlockTime"
+                roleString="$roleString --blockmakeraccount \"$blockMakerAccount\" --blockmakerpassword \"$blockMakerPassword\" --singleblockmaker --minblocktime $minBlockTime --maxblocktime $maxBlockTime"
+            fi
+            eval verbosity="\$${nodeName}_verbosity"
+            echo "      +- Starting $containerName with roles [ $roles ]"        
+            docker  exec -d $containerName      \
+                    /bin/bash -c                \
+                    "PRIVATE_CONFIG=/data/quorum/constellation/constellation_${nodeName}.conf \
+                    nohup geth --datadir /data/quorum \
+                    --bootnodes $BOOTNODE_ENODE \
+                    --networkid $networkId  \
+                    --solc /usr/bin/solc \
+                    --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum \
+                    --rpc --rpcaddr ${ipAddr} --rpcport $rpcPort --port $port \
+                    $roleString \
+                    --verbosity $verbosity \
+                    2>>/data/quorum/logs/$nodeName.log &"    
+        else
+            echo "      +- Detected an existing geth process on $containerName -> [ $gethNodeStatus ]"            
         fi
-
-        echo "      +- Starting $containerName with roles [ $roles ]"
-        echo $roleString
-        docker  exec -d $containerName      \
-                /bin/bash -c                \
-                "PRIVATE_CONFIG=/data/quorum/constellation/constellation_${nodeName}.conf \
-                 nohup geth --datadir /data/quorum \
-                 --bootnodes $BOOTNODE_ENODE \
-                 --networkid $networkId  \
-                 --solc /usr/bin/solc \
-                 --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum \
-                 --rpc --rpcaddr ${ipAddr} --rpcport $rpcPort --port $port \
-                  $roleString \
-                 --verbosity 4 \
-                 2>>/data/quorum/logs/$nodeName.log &"
                 
     done
+
+    # Echo current status
+    printf "\n"
+    echo " +---------------------------------------------------------------+"
+    echo " |                      Active Quorum Nodes                      |"
+    echo " +-----------------------+---------------+-----------------------+"   
+    printf " | Container Name \t | IP Address \t | Roles \t\t |\n"
+    echo " +-----------------------+---------------+-----------------------+"   
+    for nodeName in $nodes
+    do
+        containerName=${networkName}_${nodeName}
+        eval roles="\$${nodeName}_roles"
+        eval ipAddr=$(docker inspect --format "{{ .NetworkSettings.Networks.$networkName.IPAddress }}" $containerName)
+        printf " | %s \t | %s \t | %s \t\t \n" $containerName $ipAddr "$roles"
+
+    done
+    echo " +-----------------------+---------------+-----------------------+"   
+
+    echo ""
+    echo " +---------------------------------------------------------------+"
+    echo " |                      Constellation Logs                       |"
+    echo " +---------------------------------------------------------------+" 
+    for nodeName in $nodes
+    do
+        echo "  $HOME/quorum/$networkName/datadirs/$nodeName/logs/constellation_${nodeName}.log"
+    done
+    echo " +---------------------------------------------------------------+" 
+
+    echo ""
+    echo " +---------------------------------------------------------------+"
+    echo " |                          Quorum Logs                          |"
+    echo " +---------------------------------------------------------------+" 
+    for nodeName in $nodes
+    do
+        echo "  $HOME/quorum/$networkName/datadirs/$nodeName/logs/${nodeName}.log"
+    done
+    echo " +---------------------------------------------------------------+" 
+
+    echo ""
+    echo " +---------------------------------------------------------------+"
+    echo " |                         Quorum IPC's                          |"
+    echo " +---------------------------------------------------------------+" 
+    for nodeName in $nodes
+    do
+        echo "  $HOME/quorum/$networkName/datadirs/$nodeName/geth.ipc"
+    done
+    echo " +---------------------------------------------------------------+" 
 
 fi

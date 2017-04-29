@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 # Author : Ashfaq Ahmed Shaik <https://github.com/0yukikaze0>
 #
@@ -84,7 +84,7 @@ else
     #   Container name      : <networkName>_<nodeName>
     #   Docker network name : <networkName>
     #
-    #   1. Delete any pre existing docker network
+    #   1. Delete any pre existing docker network (for sanity)
     #   2. Create docker network
     #   3. Spin up node containers
 
@@ -107,7 +107,7 @@ else
                 -v $HOME/quorum/$networkName/genesis:/data/genesis              \
                 -v $HOME/quorum/$networkName/datadirs/$nodeName:/data/quorum    \
                 -p $rpcPort:$rpcPort                \
-                broadridge/quorum:1.1.0 > /dev/null
+                yukikaze/quorum:1.1.0 > /dev/null
     done
 
     printf "\n"

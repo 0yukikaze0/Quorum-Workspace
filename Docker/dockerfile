@@ -10,7 +10,7 @@ ENV https_proxy $PROXY
 ENV PATH $PATH:/usr/local/go/bin
 
 # Install Constellation
-ADD ./dependencies/constellation_v0.1.0_ubuntu1604.tar /usr/local/bin
+ADD ./dependencies/constellation_v0.1.0_ubuntu1604.tar.gz /usr/local/bin
 
 # Install Pre Requisites
 RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                               && \
@@ -36,7 +36,7 @@ RUN GO_RELEASE=go1.7.3.linux-amd64.tar.gz                                       
     cd / && rm -rf /quorum                                                              && \
     
 # Attach execute permissions to constellation
-    chmod 0755 /usr/local/bin//constellation-node                                       && \
+    chmod 0755 /usr/local/bin/constellation-node                                       && \
     chmod 0755 /usr/local/bin/constellation-enclave-keygen                              && \
 
 # Clean up

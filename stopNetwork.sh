@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 # Author : Ashfaq Ahmed Shaik <https://github.com/0yukikaze0>
 #
