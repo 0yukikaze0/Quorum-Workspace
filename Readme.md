@@ -31,7 +31,9 @@ Skip to step 2 if you are not interested in configuring your own network.
     * Create properties file named `bifrost.properties` (mimic TestNet.properties)
     * Place keypairs in `Networks/bifrost/`
 2. Run `initNetwork.sh TestNet`
-    * **Caution** :This is a desctructive action and will delete any pre existing data for this network. Run this step only if 1) This is your first deployment 2) You want to reset your quorum network
+    * **Caution** :This is a destructive action and will delete any pre existing data for this network. Run this step only if 
+        1) This is your first deployment 
+        2) You want to reset your quorum network
     * This script will create the scaffolding and build your network as per the configuration in TestNet.properties
     * Further down the process, it would prompt for a password for constellation keys. Hit enter and donot set a password. Password management would be in place in a future release
 3. Run `startNetwork TestNet`
